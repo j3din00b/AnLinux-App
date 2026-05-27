@@ -16,7 +16,7 @@
     android:label="@string/app_name"
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
-    android:theme="@style/AppTheme">
+    android:theme="@style/AppTheme.NoActionBar">
     <meta-data
         android:name="com.google.android.gms.ads.APPLICATION_ID"
         android:value="ca-app-pub-5748356089815497~5704037803"/>
@@ -25,7 +25,7 @@
         android:exported="true"
         android:screenOrientation="portrait"
         android:label="@string/app_name"
-        android:theme="@style/Theme.MyApp.Splash">
+        android:theme="@style/AppTheme.NoActionBar">
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
 

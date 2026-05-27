@@ -20,7 +20,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
@@ -71,10 +70,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
     private long lastPressedTime;
     private static final int PERIOD = 3000;
     private RewardedAd rewardedAd;
-    AppOpenAdManager appOpenAdManager;
     InterstitialAd mInterstitialAd;
     AdView mAdView;
-    BannerAd bannerAd;
     FrameLayout frameLayout;
     SharedPreferences sharedPreferences;
     SharedPreferences.Editor editor;
@@ -88,7 +85,6 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_ui);
 
@@ -117,35 +113,14 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
         isFirstBugNotified = sharedPreferences.getBoolean("IsFirstBugNotified", false);
 
-        final long splashDelay = 3500;
-        final long startTime = System.currentTimeMillis();
-        splashScreen.setKeepOnScreenCondition(
-                () -> {
-                    long elapsed = System.currentTimeMillis() - startTime;
-                    return elapsed < splashDelay;
-                });
         if(!isOreoNotified){
             showFirstDialog();
         }
-        splashScreen.setOnExitAnimationListener(splashScreenview ->{
-            splashScreenview.remove();
-            if(shouldShowAds){
-                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
-                    @Override
-                    public void onShowAdComplete() {
-                        // Empty because the user will go back to the activity that shows the ad.
-                        showOpenAdsNow = false;
-                    }
-                });
-            }
-        });
 
         frameLayout = findViewById(R.id.ad_view_container);
 
         mAdView = new AdView(this);
         frameLayout.addView(mAdView);
-
-        appOpenAdManager = new AppOpenAdManager();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
 
@@ -212,7 +187,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                                                 Log.i("admob info", adError.toString());
                                             }
                                         });
-                                appOpenAdManager.loadAd(MainUI.this);
+                                loadAd();
                                 editor.putBoolean("ShouldShowAds", true).apply();
                                 shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
                             }else{
@@ -245,31 +220,6 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         }
         if(rewardedAd == null){
             loadRewardedAd();
-        }
-        shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
-        if(shouldShowAds){
-            if(showOpenAdsNow){
-                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
-                    @Override
-                    public void onShowAdComplete() {
-                        // Empty because the user will go back to the activity that shows the ad.
-                        lockOpenAds = false;
-                        showOpenAdsNow = false;
-                    }
-                });
-            }
-            if(lockOpenAds){
-                showOpenAdsNow = true;
-            }else{
-                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
-                    @Override
-                    public void onShowAdComplete() {
-                        // Empty because the user will go back to the activity that shows the ad.
-                        lockOpenAds = false;
-                        showOpenAdsNow = false;
-                    }
-                });
-            }
         }
     }
     @Override
@@ -504,13 +454,13 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 }
                 newFragment(8);
             }
-        }else if(id == R.id.wiki){
+        }else if(id == R.id.wiki) {
             MenuItem selected = navigationView.getMenu().findItem(R.id.wiki);
             selected.setCheckable(true);
             selected.setChecked(true);
-            if(!(fragment instanceof Patches)){
+            if (!(fragment instanceof Patches)) {
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if (mInterstitialAd != null && shouldShowAds) {
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -847,13 +797,6 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 editor.putBoolean("IsOreoNotified", true);
                 editor.apply();
                 isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
-                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
-                    @Override
-                    public void onShowAdComplete() {
-                        showOpenAdsNow = false;
-                        // Empty because the user will go back to the activity that shows the ad.
-                    }
-                });
                 dialog.dismiss();
             }
         });
