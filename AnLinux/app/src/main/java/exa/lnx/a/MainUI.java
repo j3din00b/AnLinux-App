@@ -12,6 +12,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
 
@@ -20,6 +22,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
@@ -70,6 +73,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
     private long lastPressedTime;
     private static final int PERIOD = 3000;
     private RewardedAd rewardedAd;
+    AppOpenAdManager appOpenAdManager;
     InterstitialAd mInterstitialAd;
     AdView mAdView;
     FrameLayout frameLayout;
@@ -82,9 +86,11 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
     boolean splashDone = false;
     boolean isOreoNotified;
     boolean isFirstBugNotified;
+    boolean isDialogShowing = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_ui);
 
@@ -113,14 +119,30 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
         isFirstBugNotified = sharedPreferences.getBoolean("IsFirstBugNotified", false);
 
-        if(!isOreoNotified){
+        final long splashDelay = 3500;
+        final long startTime = System.currentTimeMillis();
+        if(isOreoNotified){
+            splashScreen.setKeepOnScreenCondition(
+                    () -> {
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        return elapsed < splashDelay;
+                    });
+        }else{
+            splashScreen.setKeepOnScreenCondition(() -> false);
             showFirstDialog();
+            isDialogShowing = true;
         }
+        splashScreen.setOnExitAnimationListener(splashScreenview ->{
+            appOpenAdManager.loadAd(MainUI.this);
+            splashScreenview.remove();
+        });
 
         frameLayout = findViewById(R.id.ad_view_container);
 
         mAdView = new AdView(this);
         frameLayout.addView(mAdView);
+
+        appOpenAdManager = new AppOpenAdManager();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
 
@@ -188,6 +210,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                                             }
                                         });
                                 loadAd();
+                                appOpenAdManager.loadAd(MainUI.this);
                                 editor.putBoolean("ShouldShowAds", true).apply();
                                 shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
                             }else{
@@ -210,6 +233,21 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         // Handle the error.
                     }
                 });
+        if(isOreoNotified){
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                        @Override
+                        public void onShowAdComplete() {
+                            // Empty because the user will go back to the activity that shows the ad.
+                            showOpenAdsNow = false;
+                            i = -1;
+                        }
+                    });
+                }
+            }, 8500);
+        }
     }
     @Override
     public void onResume() {
@@ -217,6 +255,39 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         super.onResume();
         if (mInterstitialAd == null) {
             loadAd();
+        }
+        shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
+        if(shouldShowAds){
+            if(showOpenAdsNow){
+                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                    @Override
+                    public void onShowAdComplete() {
+                        // Empty because the user will go back to the activity that shows the ad.
+                        lockOpenAds = false;
+                        showOpenAdsNow = false;
+                        i = -1;
+                    }
+                });
+            }
+            if(lockOpenAds){
+                showOpenAdsNow = true;
+            }else{
+                if(!isDialogShowing){
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                                @Override
+                                public void onShowAdComplete() {
+                                    // Empty because the user will go back to the activity that shows the ad.
+                                    showOpenAdsNow = false;
+                                    i = -1;
+                                }
+                            });
+                        }
+                    }, 4500);
+                }
+            }
         }
         if(rewardedAd == null){
             loadRewardedAd();
@@ -318,6 +389,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(0);
             }
@@ -349,6 +422,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(2);
             }
@@ -363,6 +438,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(9);
             }
@@ -379,6 +456,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(3);
             }
@@ -393,6 +472,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(4);
             }
@@ -407,6 +488,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(5);
             }
@@ -421,6 +504,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(6);
             }
@@ -437,6 +522,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(7);
             }
@@ -451,6 +538,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(8);
             }
@@ -465,6 +554,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         lockOpenAds = true;
                         i = 1;
                     }
+                }else if(i == -1){
+                    i = 0;
                 }
                 newFragment(10);
             }
@@ -797,6 +888,19 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 editor.putBoolean("IsOreoNotified", true);
                 editor.apply();
                 isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                            @Override
+                            public void onShowAdComplete() {
+                                // Empty because the user will go back to the activity that shows the ad.
+                                showOpenAdsNow = false;
+                                i = -1;
+                            }
+                        });
+                    }
+                }, 1500);
                 dialog.dismiss();
             }
         });
