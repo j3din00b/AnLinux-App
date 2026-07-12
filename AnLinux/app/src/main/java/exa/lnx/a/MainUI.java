@@ -233,7 +233,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                         // Handle the error.
                     }
                 });
-        if(isOreoNotified){
+        if(isOreoNotified && !donationInstalled() && !isVideoAdsWatched()){
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -257,7 +257,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             loadAd();
         }
         shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
-        if(shouldShowAds){
+        if(shouldShowAds && !donationInstalled() && !isVideoAdsWatched()){
             if(showOpenAdsNow){
                 appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
                     @Override
@@ -384,7 +384,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof DashBoard)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -417,7 +417,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof DesktopEnvironment)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -433,7 +433,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof HeavyDE)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -451,7 +451,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof WindowManager)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -467,7 +467,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof Uninstaller)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -483,7 +483,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof SSH)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -499,7 +499,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof Patches)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -517,7 +517,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof SU)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -533,7 +533,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof Patches)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -549,7 +549,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if (!(fragment instanceof Patches)) {
                 if (i == 0) {
-                    if (mInterstitialAd != null && shouldShowAds) {
+                    if (mInterstitialAd != null && shouldShowAds && !donationInstalled()) {
                         mInterstitialAd.show(MainUI.this);
                         lockOpenAds = true;
                         i = 1;
@@ -733,7 +733,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                                         int a =  cal.get(Calendar.DAY_OF_MONTH);
                                         int b = sharedPreferences.getInt("VideoAds", 0);
                                         if(a != b){
-                                            if(!donationInstalled() && !isVideoAdsWatched()){
+                                            if(!isVideoAdsWatched()){
                                                 mAdView.destroy();
                                                 mAdView.setVisibility(View.GONE);
                                                 frameLayout.removeView(mAdView);
@@ -792,7 +792,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                                 int a =  cal.get(Calendar.DAY_OF_MONTH);
                                 int b = sharedPreferences.getInt("VideoAds", 0);
                                 if(a != b){
-                                    if(!donationInstalled() && !isVideoAdsWatched()){
+                                    if(!isVideoAdsWatched()){
                                         mAdView.destroy();
                                         mAdView.setVisibility(View.GONE);
                                         frameLayout.removeView(mAdView);
@@ -888,19 +888,21 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 editor.putBoolean("IsOreoNotified", true);
                 editor.apply();
                 isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
-                            @Override
-                            public void onShowAdComplete() {
-                                // Empty because the user will go back to the activity that shows the ad.
-                                showOpenAdsNow = false;
-                                i = -1;
-                            }
-                        });
-                    }
-                }, 1500);
+                if(shouldShowAds && !donationInstalled() && !isVideoAdsWatched()){
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                                @Override
+                                public void onShowAdComplete() {
+                                    // Empty because the user will go back to the activity that shows the ad.
+                                    showOpenAdsNow = false;
+                                    i = -1;
+                                }
+                            });
+                        }
+                    }, 1500);
+                }
                 dialog.dismiss();
             }
         });
