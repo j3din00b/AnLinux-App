@@ -23,7 +23,7 @@
 
 ## 它如何工作？
 
-使用 bash 脚本通过 Internet 下载图像，然后解压缩图像，然后使用 [PRoot](https://github.com/proot-me/PRoot) 挂载它。
+使用 bash 脚本通过 Internet 下载系统镜像，然后解压缩系统镜像，然后使用 [PRoot](https://github.com/proot-me/PRoot) 挂载它。
 
 
 
