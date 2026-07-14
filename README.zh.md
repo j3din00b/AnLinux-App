@@ -5,7 +5,7 @@
 
 在Google Play上下载
 
-<a href='https://play.google.com/store/apps/details?id=exa.lnx.a'><img alt='Get it on Google Play' src='/icons/en_badge_web_generic.png' height="100"/></a>
+<a href='https://play.google.com/store/apps/details?id=exa.lnx.a'><img alt='Get it on Google Play' src='icons/en_badge_web_generic.png' height="100"/></a>
 
 （中国大陆不能使用）
 
