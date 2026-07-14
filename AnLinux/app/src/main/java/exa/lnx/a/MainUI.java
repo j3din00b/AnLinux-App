@@ -1,6 +1,5 @@
 package exa.lnx.a;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Fragment;
 import android.app.FragmentTransaction;
@@ -13,15 +12,17 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
-import android.view.Display;
-import android.view.Gravity;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 import android.view.KeyEvent;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
@@ -32,25 +33,31 @@ import android.view.ViewGroup;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.FrameLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.ads.AdError;
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdSize;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.FullScreenContentCallback;
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.OnUserEarnedRewardListener;
-import com.google.android.gms.ads.initialization.InitializationStatus;
-import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
-import com.google.android.gms.ads.interstitial.InterstitialAd;
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
-import com.google.android.gms.ads.rewarded.RewardItem;
-import com.google.android.gms.ads.rewarded.RewardedAd;
-import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import com.google.android.libraries.ads.mobile.sdk.MobileAds;
+import com.google.android.libraries.ads.mobile.sdk.banner.AdSize;
+import com.google.android.libraries.ads.mobile.sdk.banner.AdView;
+import com.google.android.libraries.ads.mobile.sdk.banner.BannerAd;
+import com.google.android.libraries.ads.mobile.sdk.banner.BannerAdEventCallback;
+import com.google.android.libraries.ads.mobile.sdk.banner.BannerAdRequest;
+import com.google.android.libraries.ads.mobile.sdk.common.AdLoadCallback;
+import com.google.android.libraries.ads.mobile.sdk.common.AdRequest;
+import com.google.android.libraries.ads.mobile.sdk.common.LoadAdError;
+import com.google.android.libraries.ads.mobile.sdk.initialization.InitializationConfig;
+import com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAd;
+import com.google.android.libraries.ads.mobile.sdk.interstitial.InterstitialAdEventCallback;
+import com.google.android.libraries.ads.mobile.sdk.rewarded.OnUserEarnedRewardListener;
+import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardItem;
+import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAd;
+import com.google.android.libraries.ads.mobile.sdk.rewarded.RewardedAdEventCallback;
 import com.google.android.material.navigation.NavigationView;
+import com.google.android.ump.ConsentForm;
+import com.google.android.ump.ConsentInformation;
+import com.google.android.ump.ConsentRequestParameters;
+import com.google.android.ump.FormError;
+import com.google.android.ump.UserMessagingPlatform;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -58,11 +65,15 @@ import java.util.Date;
 public class MainUI extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     Context context;
+    private ConsentInformation consentInformation;
+    private ConsentForm consentForm;
+    ConsentRequestParameters params;
     NavigationView navigationView;
     DrawerLayout drawer;
     private long lastPressedTime;
     private static final int PERIOD = 3000;
     private RewardedAd rewardedAd;
+    AppOpenAdManager appOpenAdManager;
     InterstitialAd mInterstitialAd;
     AdView mAdView;
     FrameLayout frameLayout;
@@ -70,42 +81,68 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
     SharedPreferences.Editor editor;
     int i = 0;
     boolean shouldShowAds = false;
+    boolean lockOpenAds = false;
+    boolean showOpenAdsNow = false;
+    boolean splashDone = false;
     boolean isOreoNotified;
+    boolean isFirstBugNotified;
+    boolean isDialogShowing = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_ui);
 
         context = getApplicationContext();
 
-        MobileAds.initialize(this, new OnInitializationCompleteListener() {
-            @Override
-            public void onInitializationComplete(InitializationStatus initializationStatus) {}
-        });
+        new Thread(
+                () -> {
+                    // Initialize GMA Next-Gen SDK on a background thread.
+                    MobileAds.initialize(
+                            this,
+                            // Sample AdMob app ID: ca-app-pub-3940256099942544~3347511713
+                            new InitializationConfig.Builder("ca-app-pub-5748356089815497~5704037803")
+                                    .build(),
+                            initializationStatus -> {
+                                // Adapter initialization is complete.
+                            });
+                    // SDK initialization is complete. If you don't want to wait for bidding adapters to
+                    // finish initializing, start loading ads now.
+                })
+                .start();
 
         sharedPreferences = context.getSharedPreferences("GlobalPreferences", 0);
         editor = sharedPreferences.edit();
 
+        shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
+        isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
+        isFirstBugNotified = sharedPreferences.getBoolean("IsFirstBugNotified", false);
+
+        final long splashDelay = 3500;
+        final long startTime = System.currentTimeMillis();
+        if(isOreoNotified){
+            splashScreen.setKeepOnScreenCondition(
+                    () -> {
+                        long elapsed = System.currentTimeMillis() - startTime;
+                        return elapsed < splashDelay;
+                    });
+        }else{
+            splashScreen.setKeepOnScreenCondition(() -> false);
+            showFirstDialog();
+            isDialogShowing = true;
+        }
+        splashScreen.setOnExitAnimationListener(splashScreenview ->{
+            appOpenAdManager.loadAd(MainUI.this);
+            splashScreenview.remove();
+        });
+
         frameLayout = findViewById(R.id.ad_view_container);
 
         mAdView = new AdView(this);
-        mAdView.setAdUnitId("ca-app-pub-5748356089815497/7765835183");
         frameLayout.addView(mAdView);
 
-        AdSize adSize = getAdSize();
-        mAdView.setAdSize(adSize);
-
-        if(!donationInstalled() && !isVideoAdsWatched()){
-            mAdView.loadAd(new AdRequest.Builder().build());
-            shouldShowAds = true;
-        }else{
-            mAdView.pause();
-            mAdView.destroy();
-            mAdView.setVisibility(View.GONE);
-            frameLayout.removeView(mAdView);
-            shouldShowAds = false;
-        }
+        appOpenAdManager = new AppOpenAdManager();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
 
@@ -117,11 +154,8 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         drawer.addDrawerListener(toggle);
         toggle.syncState();
 
-        isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
-
         navigationView = findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
-
 
         if(donationInstalled()){
             if(savedInstanceState == null) {
@@ -135,8 +169,84 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 drawer.openDrawer(GravityCompat.START);
             }
         }
-        if(!isOreoNotified){
-            showFirstDialog();
+
+        params = new ConsentRequestParameters
+                .Builder()
+                .setTagForUnderAgeOfConsent(false)
+                .build();
+
+        consentInformation = UserMessagingPlatform.getConsentInformation(this);
+
+        consentInformation.requestConsentInfoUpdate(
+                this,
+                params,
+                new ConsentInformation.OnConsentInfoUpdateSuccessListener() {
+                    @Override
+                    public void onConsentInfoUpdateSuccess() {
+                        if(consentInformation.getConsentStatus() == ConsentInformation.ConsentStatus.OBTAINED || consentInformation.getConsentStatus() == ConsentInformation.ConsentStatus.NOT_REQUIRED){
+                            if(!donationInstalled() && !isVideoAdsWatched()){
+                                AdSize adSize = AdSize.getLargeAnchoredAdaptiveBannerAdSize(MainUI.this, 360);
+                                BannerAdRequest adRequest = new BannerAdRequest.Builder("ca-app-pub-5748356089815497/7765835183", adSize).build();
+                                mAdView.loadAd(
+                                        adRequest,
+                                        new AdLoadCallback<BannerAd>() {
+                                            @Override
+                                            public void onAdLoaded(@NonNull BannerAd ad) {
+                                                ad.setAdEventCallback(
+                                                        new BannerAdEventCallback() {
+                                                            @Override
+                                                            public void onAdImpression() {
+                                                            }
+
+                                                            @Override
+                                                            public void onAdClicked() {
+                                                            }
+                                                        });
+                                                Log.i("admob info", ad.toString());
+                                            }
+                                            @Override
+                                            public void onAdFailedToLoad(@NonNull LoadAdError adError) {
+                                                Log.i("admob info", adError.toString());
+                                            }
+                                        });
+                                loadAd();
+                                appOpenAdManager.loadAd(MainUI.this);
+                                editor.putBoolean("ShouldShowAds", true).apply();
+                                shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
+                            }else{
+                                mAdView.destroy();
+                                mAdView.setVisibility(View.GONE);
+                                frameLayout.removeView(mAdView);
+                                editor.putBoolean("ShouldShowAds", false).apply();
+                                shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
+                            }
+                        }else if(consentInformation.getConsentStatus() == ConsentInformation.ConsentStatus.REQUIRED){
+                            loadForm();
+                        }
+                        // The consent information state was updated.
+                        // You are now ready to check if a form is available.
+                    }
+                },
+                new ConsentInformation.OnConsentInfoUpdateFailureListener() {
+                    @Override
+                    public void onConsentInfoUpdateFailure(FormError formError) {
+                        // Handle the error.
+                    }
+                });
+        if(isOreoNotified && !donationInstalled() && !isVideoAdsWatched()){
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                        @Override
+                        public void onShowAdComplete() {
+                            // Empty because the user will go back to the activity that shows the ad.
+                            showOpenAdsNow = false;
+                            i = -1;
+                        }
+                    });
+                }
+            }, 8500);
         }
     }
     @Override
@@ -145,6 +255,39 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         super.onResume();
         if (mInterstitialAd == null) {
             loadAd();
+        }
+        shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
+        if(shouldShowAds && !donationInstalled() && !isVideoAdsWatched()){
+            if(showOpenAdsNow){
+                appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                    @Override
+                    public void onShowAdComplete() {
+                        // Empty because the user will go back to the activity that shows the ad.
+                        lockOpenAds = false;
+                        showOpenAdsNow = false;
+                        i = -1;
+                    }
+                });
+            }
+            if(lockOpenAds){
+                showOpenAdsNow = true;
+            }else{
+                if(!isDialogShowing){
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                                @Override
+                                public void onShowAdComplete() {
+                                    // Empty because the user will go back to the activity that shows the ad.
+                                    showOpenAdsNow = false;
+                                    i = -1;
+                                }
+                            });
+                        }
+                    }, 4500);
+                }
+            }
         }
         if(rewardedAd == null){
             loadRewardedAd();
@@ -159,7 +302,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         FragmentTransaction fragmentTransaction = getFragmentManager().beginTransaction();
 
         if(event.getKeyCode() == KeyEvent.KEYCODE_BACK){
-            if(fragment instanceof DashBoard){
+            if(fragment instanceof DashBoard || fragment == null){
                 if(drawer.isDrawerOpen(GravityCompat.START)){
                     switch(event.getAction()){
                         case KeyEvent.ACTION_DOWN:
@@ -219,6 +362,11 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 fragmentTransaction.replace(R.id.fragmentHolder, fragment);
                 fragmentTransaction.addToBackStack(null);
                 fragmentTransaction.commit();
+            }else if(fragment instanceof Wiki){
+                fragment = new DashBoard();
+                fragmentTransaction.replace(R.id.fragmentHolder, fragment);
+                fragmentTransaction.addToBackStack(null);
+                fragmentTransaction.commit();
             }
         }
         return false;
@@ -228,6 +376,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         Fragment fragment = this.getFragmentManager().findFragmentById(R.id.fragmentHolder);
+        shouldShowAds = sharedPreferences.getBoolean("ShouldShowAds", false);
 
         if (id == R.id.dashboard) {
             MenuItem selected = navigationView.getMenu().findItem(R.id.dashboard);
@@ -235,16 +384,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof DashBoard)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(0);
@@ -261,23 +406,23 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 notifyUserForSupportAfterDonation();
             }
         }else if(id == R.id.report){
-            notifyUserToReportError();
+            if(isFirstBugNotified){
+                notifyUserToReportError();
+            }else{
+                showFirstReportBugDialog();
+            }
         }else if(id == R.id.gui){
             MenuItem selected = navigationView.getMenu().findItem(R.id.gui);
             selected.setCheckable(true);
             selected.setChecked(true);
             if(!(fragment instanceof DesktopEnvironment)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(2);
@@ -288,16 +433,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof HeavyDE)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(9);
@@ -310,16 +451,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof WindowManager)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(3);
@@ -330,16 +467,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof Uninstaller)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(4);
@@ -350,16 +483,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof SSH)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(5);
@@ -370,16 +499,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof Patches)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(6);
@@ -392,16 +517,12 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             selected.setChecked(true);
             if(!(fragment instanceof SU)){
                 if (i == 0) {
-                    if(mInterstitialAd != null && shouldShowAds){
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
                         mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
                     }
-                    i = 1;
-                }else if(i == 1){
-                    i = 2;
-                }else if(i == 2){
-                    if(mInterstitialAd != null && shouldShowAds){
-                        mInterstitialAd.show(MainUI.this);
-                    }
+                }else if(i == -1){
                     i = 0;
                 }
                 newFragment(7);
@@ -410,7 +531,34 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             MenuItem selected = navigationView.getMenu().findItem(R.id.rootfs_download);
             selected.setCheckable(true);
             selected.setChecked(true);
-            newFragment(8);
+            if(!(fragment instanceof Patches)){
+                if (i == 0) {
+                    if(mInterstitialAd != null && shouldShowAds && !donationInstalled()){
+                        mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
+                    }
+                }else if(i == -1){
+                    i = 0;
+                }
+                newFragment(8);
+            }
+        }else if(id == R.id.wiki) {
+            MenuItem selected = navigationView.getMenu().findItem(R.id.wiki);
+            selected.setCheckable(true);
+            selected.setChecked(true);
+            if (!(fragment instanceof Patches)) {
+                if (i == 0) {
+                    if (mInterstitialAd != null && shouldShowAds && !donationInstalled()) {
+                        mInterstitialAd.show(MainUI.this);
+                        lockOpenAds = true;
+                        i = 1;
+                    }
+                }else if(i == -1){
+                    i = 0;
+                }
+                newFragment(10);
+            }
         }
 
         DrawerLayout drawer = findViewById(R.id.drawer_layout);
@@ -493,6 +641,13 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 fragmentTransaction.addToBackStack(null);
                 fragmentTransaction.commit();
                 break;
+
+            case 10:
+                fragment = new Wiki();
+                fragmentTransaction.replace(R.id.fragmentHolder, fragment);
+                fragmentTransaction.addToBackStack(null);
+                fragmentTransaction.commit();
+                break;
         }
     }
     public void notifyUserForDocumentation(){
@@ -554,40 +709,42 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
         alertDialog.setNegativeButton(R.string.watch_ads, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int which) {
                 if (rewardedAd != null) {
-                    rewardedAd.show(MainUI.this, new OnUserEarnedRewardListener() {
-                        @Override
-                        public void onUserEarnedReward(@NonNull RewardItem rewardItem) {
-                            if(donationInstalled()){
-                                Calendar cal = Calendar.getInstance();
-                                Date date = cal.getTime();
-                                cal.setTime(date);
-                                int a =  cal.get(Calendar.DAY_OF_MONTH);
-                                int b = sharedPreferences.getInt("VideoAds", 0);
-                                if(a != b){
-                                    editor.putInt("VideoAds", a);
-                                    editor.apply();
-                                }
-                                Toast.makeText(context, R.string.thanks_for_support, Toast.LENGTH_LONG).show();
-                            }else{
-                                Calendar cal = Calendar.getInstance();
-                                Date date = cal.getTime();
-                                cal.setTime(date);
-                                int a =  cal.get(Calendar.DAY_OF_MONTH);
-                                int b = sharedPreferences.getInt("VideoAds", 0);
-                                if(a != b){
-                                    if(!donationInstalled() && !isVideoAdsWatched()){
-                                        mAdView.pause();
-                                        mAdView.destroy();
-                                        mAdView.setVisibility(View.GONE);
-                                        frameLayout.removeView(mAdView);
+                    rewardedAd.show(
+                            MainUI.this,
+                            new OnUserEarnedRewardListener() {
+                                @Override
+                                public void onUserEarnedReward(@NonNull RewardItem rewardItem) {
+                                    // User earned the reward.
+                                    if(donationInstalled()){
+                                        Calendar cal = Calendar.getInstance();
+                                        Date date = cal.getTime();
+                                        cal.setTime(date);
+                                        int a =  cal.get(Calendar.DAY_OF_MONTH);
+                                        int b = sharedPreferences.getInt("VideoAds", 0);
+                                        if(a != b){
+                                            editor.putInt("VideoAds", a);
+                                            editor.apply();
+                                        }
+                                        Toast.makeText(context, R.string.thanks_for_support, Toast.LENGTH_LONG).show();
+                                    }else{
+                                        Calendar cal = Calendar.getInstance();
+                                        Date date = cal.getTime();
+                                        cal.setTime(date);
+                                        int a =  cal.get(Calendar.DAY_OF_MONTH);
+                                        int b = sharedPreferences.getInt("VideoAds", 0);
+                                        if(a != b){
+                                            if(!isVideoAdsWatched()){
+                                                mAdView.destroy();
+                                                mAdView.setVisibility(View.GONE);
+                                                frameLayout.removeView(mAdView);
+                                            }
+                                            editor.putInt("VideoAds", a);
+                                            editor.apply();
+                                            Toast.makeText(context, R.string.ads_removed_temp, Toast.LENGTH_LONG).show();
+                                        }
                                     }
-                                    editor.putInt("VideoAds", a);
-                                    editor.apply();
-                                    Toast.makeText(context, R.string.ads_removed_temp, Toast.LENGTH_LONG).show();
                                 }
-                            }
-                        }
-                    });
+                            });
                 }else{
                     Toast.makeText(context, R.string.no_video_ads, Toast.LENGTH_SHORT).show();
                 }
@@ -635,8 +792,7 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                                 int a =  cal.get(Calendar.DAY_OF_MONTH);
                                 int b = sharedPreferences.getInt("VideoAds", 0);
                                 if(a != b){
-                                    if(!donationInstalled() && !isVideoAdsWatched()){
-                                        mAdView.pause();
+                                    if(!isVideoAdsWatched()){
                                         mAdView.destroy();
                                         mAdView.setVisibility(View.GONE);
                                         frameLayout.removeView(mAdView);
@@ -732,6 +888,21 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
                 editor.putBoolean("IsOreoNotified", true);
                 editor.apply();
                 isOreoNotified = sharedPreferences.getBoolean("IsOreoNotified", false);
+                if(shouldShowAds && !donationInstalled() && !isVideoAdsWatched()){
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            appOpenAdManager.showAdIfAvailable(MainUI.this, new AppOpenAdManager.OnShowAdCompleteListener() {
+                                @Override
+                                public void onShowAdComplete() {
+                                    // Empty because the user will go back to the activity that shows the ad.
+                                    showOpenAdsNow = false;
+                                    i = -1;
+                                }
+                            });
+                        }
+                    }, 1500);
+                }
                 dialog.dismiss();
             }
         });
@@ -750,59 +921,108 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
             }
         });
     }
-    public void loadAd(){
-        AdRequest adRequest = new AdRequest.Builder().build();
+    protected void showFirstReportBugDialog(){
 
-        InterstitialAd.load(this,"ca-app-pub-5748356089815497/3581271493", adRequest, new InterstitialAdLoadCallback() {
+        final ViewGroup nullParent = null;
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        LayoutInflater layoutInflater = LayoutInflater.from(this);
+        View view = layoutInflater.inflate(R.layout.first_reportbug, nullParent);
+        CheckBox checkBox = view.findViewById(R.id.checkBox);
+        builder.setView(view);
+        builder.setCancelable(false);
+        builder.setNegativeButton(R.string.close, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which){
+                dialog.dismiss();
+            }
+        });
+        builder.setPositiveButton(R.string.i_agree, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which){
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putBoolean("IsFirstBugNotified", true);
+                editor.apply();
+                isOreoNotified = sharedPreferences.getBoolean("IsFirstBugNotified", false);
+                dialog.dismiss();
+            }
+        });
+        final AlertDialog dialog = builder.create();
+        dialog.show();
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
-            public void onAdLoaded(@NonNull InterstitialAd interstitialAd) {
-                // The mInterstitialAd reference will be null until
-                // an ad is loaded.
-                MainUI.this.mInterstitialAd = interstitialAd;
-                mInterstitialAd.setFullScreenContentCallback(new FullScreenContentCallback(){
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if(isChecked){
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+                }else{
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
+                }
+            }
+        });
+    }
+    public void loadAd(){
+
+        InterstitialAd.load(
+                new AdRequest.Builder("ca-app-pub-5748356089815497/3581271493").build(),
+                new AdLoadCallback<InterstitialAd>() {
                     @Override
-                    public void onAdDismissedFullScreenContent() {
-                        // Called when fullscreen content is dismissed.
+                    public void onAdLoaded(@NonNull InterstitialAd ad) {
+                        // Called when an ad has loaded.
+                        ad.setAdEventCallback(new InterstitialAdEventCallback() {
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                // Called when fullscreen content is dismissed.
+                            }
+
+                            @Override
+                            public void onAdShowedFullScreenContent() {
+                                // Called when fullscreen content is shown.
+                                // Make sure to set your reference to null so you don't
+                                // show it a second time.
+                                mInterstitialAd = null;
+                            }
+                        });
+                        mInterstitialAd = ad;
                     }
 
                     @Override
-                    public void onAdFailedToShowFullScreenContent(AdError adError) {
-                        // Called when fullscreen content failed to show.
-                    }
-
-                    @Override
-                    public void onAdShowedFullScreenContent() {
-                        // Called when fullscreen content is shown.
-                        // Make sure to set your reference to null so you don't
-                        // show it a second time.
-                        mInterstitialAd = null;
+                    public void onAdFailedToLoad(@NonNull LoadAdError adError) {
+                        // Called when ad fails to load.
                     }
                 });
-            }
-        });
     }
     public void loadRewardedAd(){
-        FullScreenContentCallback fullScreenContentCallback = new FullScreenContentCallback() {
-            @Override
-            public void onAdShowedFullScreenContent() {
-                // Code to be invoked when the ad showed full screen content.
-            }
+        RewardedAd.load(
+                new AdRequest.Builder("ca-app-pub-5748356089815497/2390763032").build(),
+                new AdLoadCallback<RewardedAd>() {
+                    @Override
+                    public void onAdLoaded(@NonNull RewardedAd ad) {
+                        // Called when an ad has loaded.
+                        ad.setAdEventCallback(new RewardedAdEventCallback() {
+                            @Override
+                            public void onAdShowedFullScreenContent() {
+                                // Code to be invoked when the ad showed full screen content.
+                            }
 
-            @Override
-            public void onAdDismissedFullScreenContent() {
-                rewardedAd = null;
-                // Code to be invoked when the ad dismissed full screen content.
-            }
-        };
-        RewardedAd.load(this, "ca-app-pub-5748356089815497/2390763032", new AdRequest.Builder().build(), new RewardedAdLoadCallback() {
-            @Override
-            public void onAdLoaded(RewardedAd ad) {
-                rewardedAd = ad;
-                rewardedAd.setFullScreenContentCallback(fullScreenContentCallback);
-            }
-        });
+                            @Override
+                            public void onAdDismissedFullScreenContent() {
+                                rewardedAd = null;
+                                // Code to be invoked when the ad dismissed full screen content.
+                            }
+                        });
+                        rewardedAd = ad;
+                    }
+
+                    @Override
+                    public void onAdFailedToLoad(@NonNull LoadAdError adError) {
+                        // Called when ad fails to load.
+                    }
+                });
     }
-    private AdSize getAdSize() {
+    /*private AdSize getAdSize() {
         // Step 2 - Determine the screen width (less decorations) to use for the ad width.
         Display display = getWindowManager().getDefaultDisplay();
         DisplayMetrics outMetrics = new DisplayMetrics();
@@ -815,7 +1035,43 @@ public class MainUI extends AppCompatActivity implements NavigationView.OnNaviga
 
         // Step 3 - Get adaptive ad size and return for setting on the ad view.
         return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, adWidth);
+    }*/
+    public void loadForm() {
+        // Loads a consent form. Must be called on the main thread.
+        UserMessagingPlatform.loadConsentForm(
+                this,
+                new UserMessagingPlatform.OnConsentFormLoadSuccessListener() {
+                    @Override
+                    public void onConsentFormLoadSuccess(ConsentForm consentForm) {
+                        MainUI.this.consentForm = consentForm;
+                        if (consentInformation.getConsentStatus() == ConsentInformation.ConsentStatus.REQUIRED) {
+                            consentForm.show(
+                                    MainUI.this,
+                                    new ConsentForm.OnConsentFormDismissedListener() {
+                                        @Override
+                                        public void onConsentFormDismissed(@Nullable FormError formError) {
+                                            if (consentInformation.getConsentStatus() == ConsentInformation.ConsentStatus.OBTAINED) {
+                                                // App can start requesting ads.
+                                                Intent intent = getIntent();
+                                                finish();
+                                                startActivity(intent);
+                                            }
+                                            // Handle dismissal by reloading form.
+                                            loadForm();
+                                        }
+                                    });
+                        }
+                    }
+                },
+                new UserMessagingPlatform.OnConsentFormLoadFailureListener() {
+                    @Override
+                    public void onConsentFormLoadFailure(FormError formError) {
+                        // Handle Error.
+                    }
+                }
+        );
     }
+
     //Temporary Code, will be back later if any error in the future
     /*public void notifyUserForTemporary(){
         final ViewGroup nullParent = null;
