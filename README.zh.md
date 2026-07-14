@@ -1,4 +1,4 @@
-这是主应用程序的仓库。 如果您正在寻找此应用程序中使用的图像和脚本，请访问 [这里](https://github.com/EXALAB/AnLinux-Resources)
+这是主应用程序的仓库。 如果您正在寻找此应用程序中使用的系统镜像和脚本，请访问 [这里](https://github.com/EXALAB/AnLinux-Resources)
 
 # AnLinux
 在没有 Root 访问权限的情况下在 Android 上运行 Linux，感谢 [Termux](https://github.com/termux/termux-app) 和 [PRoot](https://github.com/proot-me/PRoot)，使这个项目成为可能。
